@@ -73,6 +73,10 @@ public class FallbackValuesWriter<I extends ValuesWriter & RequiresFallback, F e
       // we use the first page to decide if we're going to use this encoding
       BytesInput bytes = initialWriter.getBytes();
       if (!initialWriter.isCompressionSatisfying(rawDataByteSize, bytes.size())) {
+        System.out.println(String.format(
+          "InitialWriter<%s>'s dict size + encoded size >= threshold %d. Falling back to non-dictionary writer %s.",
+          initialWriter.getClass().getSimpleName(),  rawDataByteSize, fallBackWriter.getClass().getSimpleName()
+        ));
         fallBack();
       } else {
         return bytes;

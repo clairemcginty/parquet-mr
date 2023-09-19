@@ -122,6 +122,9 @@ public abstract class DictionaryValuesWriter extends ValuesWriter implements Req
 
   @Override
   public boolean isCompressionSatisfying(long rawSize, long encodedSize) {
+    System.out.println(String.format(
+      "[%s#isCompressionSatisfying] Checking if encodedSize (%d) + dictionaryByteSize (%d) < rawSize(%d). maxDictionaryByteSize = %d.",
+      this.getClass().getSimpleName(), encodedSize, dictionaryByteSize, rawSize, maxDictionaryByteSize));
     return (encodedSize + dictionaryByteSize) < rawSize;
   }
 

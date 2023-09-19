@@ -41,6 +41,11 @@ import java.util.stream.IntStream;
 import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.junit.Assert;
 import org.junit.Test;
 import org.apache.parquet.avro.LogicalTypesTest;
 import org.apache.parquet.hadoop.ParquetReader;
@@ -68,6 +73,94 @@ public class TestSpecificReadWrite {
 
   public TestSpecificReadWrite(boolean compat) {
     this.testConf.setBoolean(AvroReadSupport.AVRO_COMPATIBILITY, compat);
+  }
+
+
+  // Int column cardinality is 100
+  // Test SUCCEEDS
+  @Test
+  public void testDictionaryEncodedForHighCardinalityColumn_Success() throws IOException {
+    File tmp = File.createTempFile(getClass().getSimpleName(), ".parquet");
+    tmp.deleteOnExit();
+    tmp.delete();
+    Path path = new Path(tmp.getPath());
+
+    try (ParquetWriter<Car> writer = AvroParquetWriter.<Car>builder(path).withSchema(Car.SCHEMA$).build()) {
+      IntStream.range(0, 30000).forEach(i -> {
+        try {
+          writer.write(Car.newBuilder()
+            .setYear(i % 100) // Low Cardinality Column
+            .setRegistration("Foo")
+            .setMake("Bar")
+            .setModel("Baz")
+            .setVin(new Vin("WVWDB4505LK000001".getBytes()))
+            .setDoors(4)
+            .setEngine(Engine.newBuilder().setType(EngineType.PETROL).setCapacity(1.4f).setHasTurboCharger(false).build())
+            .setServiceHistory(ImmutableList.of())
+            .build());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      });
+    }
+
+    try (ParquetFileReader fileReader = ParquetFileReader.open(new Configuration(false), path)) {
+      final BlockMetaData rowGroupMetadata = fileReader.getRowGroups().get(0);
+      final ColumnChunkMetaData metadata = rowGroupMetadata.getColumns().get(0); // "year" column
+
+      Assert.assertEquals("[year]", metadata.getPath().toString());
+      Assert.assertTrue(
+        "Column was not dict-encoded. Encodings were: " + metadata.getEncodings(),
+        metadata.getEncodings().contains(Encoding.PLAIN_DICTIONARY));
+    }
+  }
+
+  // Column cardinality is 10,000
+  // Test FAILS
+  @Test
+  public void testDictionaryEncodedForHighCardinalityColumn_Failure() throws IOException {
+    File tmp = File.createTempFile(getClass().getSimpleName(), ".parquet");
+    tmp.deleteOnExit();
+    tmp.delete();
+    Path path = new Path(tmp.getPath());
+
+    try (ParquetWriter<Car> writer = AvroParquetWriter.<Car>builder(path).withSchema(Car.SCHEMA$).build()) {
+      IntStream.range(0, 10000).forEach(i -> {
+        try {
+          writer.write(Car.newBuilder()
+            .setYear(i) // High Cardinality Column
+            .setRegistration("Foo")
+            .setMake("Bar")
+            .setModel("Baz")
+            .setVin(new Vin("WVWDB4505LK000001".getBytes()))
+            .setDoors(4)
+            .setEngine(Engine.newBuilder().setType(EngineType.PETROL).setCapacity(1.4f).setHasTurboCharger(false).build())
+            .setServiceHistory(ImmutableList.of())
+            .build());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      });
+    }
+
+    try (ParquetFileReader fileReader = ParquetFileReader.open(new Configuration(false), path)) {
+      final BlockMetaData rowGroupMetadata = fileReader.getRowGroups().get(0);
+      final ColumnChunkMetaData metadata = rowGroupMetadata.getColumns().get(0); // "year" column
+
+      Assert.assertEquals("[year]", metadata.getPath().toString());
+
+      /**
+       * This assertion fails
+       * Logged message:
+       *
+       * [PlainBinaryDictionaryValuesWriter#isCompressionSatisfying] Checking if encodedSize (37541) + dictionaryByteSize (168890) < rawSize(168890). maxDictionaryByteSize = 1048576.
+       * InitialWriter<PlainBinaryDictionaryValuesWriter>'s dict size + encoded size >= threshold 168890. Falling back to non-dictionary writer PlainValuesWriter.
+       * java.lang.AssertionError: Column was not dict-encoded. Encodings were: [PLAIN, BIT_PACKED]
+       */
+      Assert.assertTrue(
+        "Column was not dict-encoded. Encodings were: " + metadata.getEncodings(),
+        metadata.getEncodings().contains(Encoding.PLAIN_DICTIONARY));
+    }
   }
 
   @Test
