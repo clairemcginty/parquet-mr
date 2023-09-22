@@ -94,6 +94,7 @@ public class FallbackValuesWriter<I extends ValuesWriter & RequiresFallback, F e
       } else if (hasMaxDictionaryCompressionRatio && (encodedSize*1.0 / rawDataByteSize) >= maxDictionaryCompressionRatio) {
         System.out.println(String.format("[debug] %s is falling back to non-dict encoding because compression ratio %d/%s == %f < %f",
           initialWriter.getClass().getSimpleName(), encodedSize, rawDataByteSize, (encodedSize*1.0 / rawDataByteSize), maxDictionaryCompressionRatio));
+        fallBack();
       } else if (hasMaxDictionaryCompressionRatio) {
         return bytes;
       } else if (!initialWriter.isCompressionSatisfying(rawDataByteSize, encodedSize)) {
