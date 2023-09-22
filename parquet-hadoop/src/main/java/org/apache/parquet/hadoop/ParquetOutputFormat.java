@@ -139,6 +139,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
   public static final String WRITE_SUPPORT_CLASS  = "parquet.write.support.class";
   public static final String DICTIONARY_PAGE_SIZE = "parquet.dictionary.page.size";
   public static final String ENABLE_DICTIONARY    = "parquet.enable.dictionary";
+  public static final String MAX_DICTIONARY_COMPRESSION_RATIO = "parquet.max.dictionary.compression.ratio";
   public static final String VALIDATION           = "parquet.validation";
   public static final String WRITER_VERSION       = "parquet.writer.version";
   public static final String MEMORY_POOL_RATIO    = "parquet.memory.pool.ratio";
@@ -267,6 +268,15 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
   public static boolean getEnableDictionary(Configuration configuration) {
     return configuration.getBoolean(
         ENABLE_DICTIONARY, ParquetProperties.DEFAULT_IS_DICTIONARY_ENABLED);
+  }
+
+  // @Todo enable this per-column?
+  public static double getMaxDictionaryCompressionRatio(Configuration configuration) {
+    return configuration.getDouble(MAX_DICTIONARY_COMPRESSION_RATIO, ParquetProperties.DEFAULT_MAX_DICTIONARY_COMPRESSION_RATIO);
+  }
+
+  public static void setMaxDictionaryCompressionRatio(Configuration configuration, double ratio) {
+    configuration.setDouble(MAX_DICTIONARY_COMPRESSION_RATIO, ratio);
   }
 
   public static int getMinRowCountForPageSizeCheck(Configuration configuration) {

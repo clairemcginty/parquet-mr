@@ -665,6 +665,11 @@ public class ParquetWriter<T> implements Closeable {
       return self();
     }
 
+    public SELF withMaxDictionaryCompressionRatio(double ratio) {
+      encodingPropsBuilder.withMaxDictionaryCompressionRatio(ratio);
+      return self();
+    }
+
     /**
      * Sets the minimum number of rows to write before a page size check is done.
      *

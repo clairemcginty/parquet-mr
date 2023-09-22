@@ -48,6 +48,8 @@ public class ParquetProperties {
   public static final int DEFAULT_PAGE_SIZE = 1024 * 1024;
   public static final int DEFAULT_DICTIONARY_PAGE_SIZE = DEFAULT_PAGE_SIZE;
   public static final boolean DEFAULT_IS_DICTIONARY_ENABLED = true;
+
+  public static final double DEFAULT_MAX_DICTIONARY_COMPRESSION_RATIO = -1.0;
   public static final boolean DEFAULT_IS_BYTE_STREAM_SPLIT_ENABLED = false;
   public static final WriterVersion DEFAULT_WRITER_VERSION = WriterVersion.PARQUET_1_0;
   public static final boolean DEFAULT_ESTIMATE_ROW_COUNT_FOR_PAGE_SIZE_CHECK = true;
@@ -114,6 +116,7 @@ public class ParquetProperties {
   private final int pageRowCountLimit;
   private final boolean pageWriteChecksumEnabled;
   private final boolean enableByteStreamSplit;
+  private final double maxDictionaryCompressionRatio;
 
   private ParquetProperties(Builder builder) {
     this.pageSizeThreshold = builder.pageSize;
@@ -140,6 +143,7 @@ public class ParquetProperties {
     this.pageRowCountLimit = builder.pageRowCountLimit;
     this.pageWriteChecksumEnabled = builder.pageWriteChecksumEnabled;
     this.enableByteStreamSplit = builder.enableByteStreamSplit;
+    this.maxDictionaryCompressionRatio = builder.maxDictionaryCompressionRatio;
   }
 
   public ValuesWriter newRepetitionLevelWriter(ColumnDescriptor path) {
@@ -296,6 +300,10 @@ public class ParquetProperties {
     return numBloomFilterCandidates.getValue(column);
   }
 
+  public double getMaxDictionaryCompressionRatio() {
+    return maxDictionaryCompressionRatio;
+  }
+
   public static Builder builder() {
     return new Builder();
   }
@@ -346,6 +354,8 @@ public class ParquetProperties {
     private boolean pageWriteChecksumEnabled = DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED;
     private boolean enableByteStreamSplit = DEFAULT_IS_BYTE_STREAM_SPLIT_ENABLED;
 
+    private double maxDictionaryCompressionRatio = DEFAULT_MAX_DICTIONARY_COMPRESSION_RATIO;
+
     private Builder() {
       enableDict = ColumnProperty.<Boolean>builder().withDefaultValue(DEFAULT_IS_DICTIONARY_ENABLED);
       bloomFilterEnabled = ColumnProperty.<Boolean>builder().withDefaultValue(DEFAULT_BLOOM_FILTER_ENABLED);
@@ -374,6 +384,7 @@ public class ParquetProperties {
       this.numBloomFilterCandidates = ColumnProperty.<Integer>builder(toCopy.numBloomFilterCandidates);
       this.maxBloomFilterBytes = toCopy.maxBloomFilterBytes;
       this.enableByteStreamSplit = toCopy.enableByteStreamSplit;
+      this.maxDictionaryCompressionRatio = toCopy.maxDictionaryCompressionRatio;
     }
 
     /**
@@ -586,6 +597,15 @@ public class ParquetProperties {
 
     public Builder withPageWriteChecksumEnabled(boolean val) {
       this.pageWriteChecksumEnabled = val;
+      return this;
+    }
+
+    public Builder withMaxDictionaryCompressionRatio(double ratio) {
+      Preconditions.checkArgument(
+        ratio >= 0.0 || ratio == -1.0,
+        "dict compression ratio must be >= 0.0, or -1.0 for default compressionCheck behavior"
+      );
+      maxDictionaryCompressionRatio = ratio;
       return this;
     }
 

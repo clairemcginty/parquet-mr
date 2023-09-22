@@ -79,7 +79,8 @@ public class DefaultValuesWriterFactory implements ValuesWriterFactory {
     if (parquetProperties.isDictionaryEnabled(path)) {
       return FallbackValuesWriter.of(
         dictionaryWriter(path, parquetProperties, dictPageEncoding, dataPageEncoding),
-        writerToFallBackTo);
+        writerToFallBackTo,
+        parquetProperties.getMaxDictionaryCompressionRatio());
     } else {
       return writerToFallBackTo;
     }

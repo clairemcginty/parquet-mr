@@ -20,6 +20,7 @@ package org.apache.parquet.column.values.fallback;
 
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.values.RequiresFallback;
 import org.apache.parquet.column.values.ValuesWriter;
@@ -28,7 +29,11 @@ import org.apache.parquet.io.api.Binary;
 public class FallbackValuesWriter<I extends ValuesWriter & RequiresFallback, F extends ValuesWriter> extends ValuesWriter {
 
   public static <I extends ValuesWriter & RequiresFallback, F extends ValuesWriter> FallbackValuesWriter<I, F> of(I initialWriter, F fallBackWriter) {
-    return new FallbackValuesWriter<>(initialWriter, fallBackWriter);
+    return of(initialWriter, fallBackWriter, ParquetProperties.DEFAULT_MAX_DICTIONARY_COMPRESSION_RATIO);
+  }
+
+  public static <I extends ValuesWriter & RequiresFallback, F extends ValuesWriter> FallbackValuesWriter<I, F> of(I initialWriter, F fallBackWriter, double maxDictionaryCompressionRatio) {
+    return new FallbackValuesWriter<>(initialWriter, fallBackWriter, maxDictionaryCompressionRatio);
   }
 
   /** writer to start with */
@@ -52,11 +57,22 @@ public class FallbackValuesWriter<I extends ValuesWriter & RequiresFallback, F e
   /** indicates if this is the first page being processed */
   private boolean firstPage = true;
 
+  private boolean disableDictionaryCompressionCheck;
+  private Double maxDictionaryCompressionRatio;
+  private boolean hasMaxDictionaryCompressionRatio;
+
   public FallbackValuesWriter(I initialWriter, F fallBackWriter) {
+    this(initialWriter, fallBackWriter, ParquetProperties.DEFAULT_MAX_DICTIONARY_COMPRESSION_RATIO);
+  }
+
+  public FallbackValuesWriter(I initialWriter, F fallBackWriter, double maxDictionaryCompressionRatio) {
     super();
     this.initialWriter = initialWriter;
     this.fallBackWriter = fallBackWriter;
     this.currentWriter = initialWriter;
+    this.disableDictionaryCompressionCheck = maxDictionaryCompressionRatio == 0.0;
+    this.hasMaxDictionaryCompressionRatio = maxDictionaryCompressionRatio > 0.0;
+    this.maxDictionaryCompressionRatio = maxDictionaryCompressionRatio;
   }
 
   @Override
@@ -71,8 +87,17 @@ public class FallbackValuesWriter<I extends ValuesWriter & RequiresFallback, F e
   public BytesInput getBytes() {
     if (!fellBackAlready && firstPage) {
       // we use the first page to decide if we're going to use this encoding
-      BytesInput bytes = initialWriter.getBytes();
-      if (!initialWriter.isCompressionSatisfying(rawDataByteSize, bytes.size())) {
+      final BytesInput bytes = initialWriter.getBytes();
+      final long encodedSize = bytes.size();
+      if (disableDictionaryCompressionCheck) {
+        return bytes;
+      } else if (hasMaxDictionaryCompressionRatio && (encodedSize*1.0 / rawDataByteSize) >= maxDictionaryCompressionRatio) {
+        System.out.println(String.format("[debug] %s is falling back to non-dict encoding because compression ratio %d/%s == %f < %f",
+          initialWriter.getClass().getSimpleName(), encodedSize, rawDataByteSize, (encodedSize*1.0 / rawDataByteSize), maxDictionaryCompressionRatio));
+      } else if (hasMaxDictionaryCompressionRatio) {
+        return bytes;
+      } else if (!initialWriter.isCompressionSatisfying(rawDataByteSize, encodedSize)) {
+        System.out.println(String.format("[debug] %s is falling back to non-dict encoding because isCompressionSatisfying(%d, %d) was false", initialWriter.getClass().getSimpleName(), rawDataByteSize, bytes.size()));
         fallBack();
       } else {
         return bytes;
